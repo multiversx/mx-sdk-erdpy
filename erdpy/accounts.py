@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 import nacl.signing
 
@@ -80,14 +80,15 @@ class LedgerAccount(Account):
 
 
 class Address(IAddress):
-    HRP = "erd"
+    # Default hrp value is "erd"
+    DEFAULT_HRP = "erd"
     PUBKEY_LENGTH = 32
     PUBKEY_STRING_LENGTH = PUBKEY_LENGTH * 2  # hex-encoded
     BECH32_LENGTH = 62
-    _value_hex: str
 
-    def __init__(self, value: Any):
+    def __init__(self, value: Any, hrp: str = DEFAULT_HRP):
         self._value_hex = ''
+        self.hrp = hrp
 
         if not value:
             return
@@ -102,7 +103,9 @@ class Address(IAddress):
         elif len(value) == Address.PUBKEY_STRING_LENGTH:
             self._value_hex = _as_string(value)
         elif len(value) == Address.BECH32_LENGTH:
-            self._value_hex = _decode_bech32(value).hex()
+            hrp, value_hex = _decode_bech32(value)
+            self.hrp = hrp
+            self._value_hex = value_hex.hex()
         else:
             raise errors.BadAddressFormatError(value)
 
@@ -113,7 +116,7 @@ class Address(IAddress):
     def bech32(self) -> str:
         self._assert_validity()
         pubkey = self.pubkey()
-        b32 = bech32.bech32_encode(self.HRP, bech32.convertbits(pubkey, 8, 5))
+        b32 = bech32.bech32_encode(self.hrp, bech32.convertbits(pubkey, 8, 5))
         assert isinstance(b32, str)
         return b32
 
@@ -143,10 +146,8 @@ def _as_string(value):
     return value.decode("utf-8")
 
 
-def _decode_bech32(value):
+def _decode_bech32(value) -> Tuple[str, bytes]:
     bech32_string = _as_string(value)
     hrp, value_bytes = bech32.bech32_decode(bech32_string)
-    if hrp != Address.HRP:
-        raise errors.BadAddressFormatError(value)
     decoded_bytes = bech32.convertbits(value_bytes, 5, 8, False)
-    return bytearray(decoded_bytes)
+    return hrp, bytearray(decoded_bytes)
