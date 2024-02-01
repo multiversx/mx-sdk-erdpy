@@ -26,8 +26,8 @@ def resolve(name: str, proxy: INetworkProvider) -> Address:
 
     result = query_contract(dns_address, proxy, "resolve", [name_arg])
     if len(result) == 0:
-        return Address.from_bech32(ADDRESS_ZERO_BECH32)
-    return Address.from_hex(result[0].hex, DEFAULT_HRP)
+        return Address.new_from_bech32(ADDRESS_ZERO_BECH32)
+    return Address.new_from_hex(result[0].hex, DEFAULT_HRP)
 
 
 def validate_name(name: str, shard_id: int, proxy: INetworkProvider):

@@ -30,7 +30,7 @@ class INetworkProvider(Protocol):
     def send_transaction(self, transaction: ITransaction) -> str:
         ...
 
-    def send_transactions(self, transactions: Sequence[ITransaction]) -> Tuple[int, str]:
+    def send_transactions(self, transactions: Sequence[ITransaction]) -> Tuple[int, Dict[str, str]]:
         ...
 
     def get_transaction(self, tx_hash: str, with_process_status: Optional[bool] = False) -> ITransactionOnNetwork:
@@ -114,7 +114,7 @@ def get_guardian_account_from_args(args: Any):
         account = Account(key_file=args.guardian_keyfile, password=password)
     elif args.guardian_ledger:
         address = do_get_ledger_address(account_index=args.guardian_ledger_account_index, address_index=args.guardian_ledger_address_index)
-        account = Account(address=Address.from_bech32(address))
+        account = Account(address=Address.new_from_bech32(address))
     else:
         raise errors.NoWalletProvided()
 

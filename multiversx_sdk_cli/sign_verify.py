@@ -24,7 +24,7 @@ class SignedMessage:
         verifiable_message.signature = bytes.fromhex(self.signature)
         message_computer = MessageComputer()
 
-        verifier = UserVerifier.from_address(Address.from_bech32(self.address))
+        verifier = UserVerifier.from_address(Address.new_from_bech32(self.address))
         is_signed = verifier.verify(message_computer.compute_bytes_for_signing(verifiable_message), verifiable_message.signature)
         return is_signed
 

@@ -56,7 +56,7 @@ def test_prepare_argument():
 
 def test_contract_verification_create_request_signature():
     account = Account(pem_file=str(testdata_folder / "walletKey.pem"))
-    contract_address = Address.from_bech32("erd1qqqqqqqqqqqqqpgqeyj9g344pqguukajpcfqz9p0rfqgyg4l396qespdck")
+    contract_address = Address.new_from_bech32("erd1qqqqqqqqqqqqqpgqeyj9g344pqguukajpcfqz9p0rfqgyg4l396qespdck")
     request_payload = b"test"
     signature = _create_request_signature(account, contract_address, request_payload)
 

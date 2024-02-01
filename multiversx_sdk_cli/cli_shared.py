@@ -137,6 +137,24 @@ def add_omit_fields_arg(sub: Any):
     sub.add_argument("--omit-fields", default="[]", type=str, required=False, help="omit fields in the output payload (default: %(default)s)")
 
 
+def add_token_transfers_arg(sub: Any):
+    sub.add_argument("--token-transfers", nargs='+',
+                     help="token transfers for transfer & execute, as [token, amount] "
+                     "E.g. --token-transfers NFT-123456-0a 1 ESDT-987654 100000000")
+
+
+def add_multisig_address_arg(sub: Any):
+    sub.add_argument("--multisig", help="the address of the multisig contract")
+
+
+def add_multisig_view_address_arg(sub: Any):
+    sub.add_argument("--multisig-view", help="the address of the multisig-view contract")
+
+
+def add_multisig_action_arg(sub: Any):
+    sub.add_argument("--action-id", help="an integer representing the ID of the action; can also be `all`")
+
+
 def parse_omit_fields_arg(args: Any) -> List[str]:
     literal = args.omit_fields
     parsed = ast.literal_eval(literal)

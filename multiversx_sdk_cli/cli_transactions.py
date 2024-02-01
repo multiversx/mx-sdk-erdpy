@@ -7,10 +7,14 @@ from multiversx_sdk_network_providers.proxy_network_provider import \
 from multiversx_sdk_cli import cli_shared, utils
 from multiversx_sdk_cli.cli_output import CLIOutputBuilder
 from multiversx_sdk_cli.cosign_transaction import cosign_transaction
-from multiversx_sdk_cli.errors import NoWalletProvided
+from multiversx_sdk_cli.errors import BadUsage, NoWalletProvided
+from multiversx_sdk_cli.multisig import (
+    prepare_transaction_for_custom_token_transfer,
+    prepare_transaction_for_egld_transfer)
 from multiversx_sdk_cli.transactions import (compute_relayed_v1_data,
                                              do_prepare_transaction,
-                                             load_transaction_from_file)
+                                             load_transaction_from_file,
+                                             sign_tx_by_guardian)
 
 
 def setup_parser(args: List[str], subparsers: Any) -> Any:
@@ -23,6 +27,8 @@ def setup_parser(args: List[str], subparsers: Any) -> Any:
     cli_shared.add_broadcast_args(sub, relay=True)
     cli_shared.add_proxy_arg(sub)
     cli_shared.add_guardian_wallet_args(args, sub)
+    cli_shared.add_multisig_address_arg(sub)
+    cli_shared.add_token_transfers_arg(sub)
     sub.add_argument("--wait-result", action="store_true", default=False,
                      help="signal to wait for the transaction result - only valid if --send is set")
     sub.add_argument("--timeout", default=100, help="max num of seconds to wait for result"
@@ -71,10 +77,46 @@ def create_transaction(args: Any):
     cli_shared.prepare_chain_id_in_args(args)
     cli_shared.prepare_nonce_in_args(args)
 
-    if args.data_file:
-        args.data = Path(args.data_file).read_text()
+    if args.multisig:
+        if args.data:
+            raise BadUsage("`--data` should not be provided when interacting with a multisig")
 
-    tx = do_prepare_transaction(args)
+        sender = cli_shared.prepare_account(args)
+
+        if int(args.value):
+            tx = prepare_transaction_for_egld_transfer(
+                sender=sender,
+                multisig=args.multisig,
+                receiver=args.receiver,
+                chain_id=args.chain,
+                value=int(args.value),
+                gas_limit=int(args.gas_limit),
+                nonce=int(args.nonce),
+                version=int(args.version),
+                options=int(args.options),
+                guardian=args.guardian
+            )
+        else:
+            tx = prepare_transaction_for_custom_token_transfer(
+                sender=sender,
+                multisig=args.multisig,
+                receiver=args.receiver,
+                chain_id=args.chain,
+                transfers=args.token_transfers,
+                gas_limit=int(args.gas_limit),
+                nonce=int(args.nonce),
+                version=int(args.version),
+                options=int(args.options),
+                guardian=args.guardian)
+
+        if tx.guardian:
+            tx = sign_tx_by_guardian(args, tx)
+
+    else:
+        if args.data_file:
+            args.data = Path(args.data_file).read_text()
+
+        tx = do_prepare_transaction(args)
 
     if hasattr(args, "relay") and args.relay:
         args.outfile.write(compute_relayed_v1_data(tx))

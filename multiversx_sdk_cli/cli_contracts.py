@@ -17,8 +17,13 @@ from multiversx_sdk_cli.contracts import SmartContract, query_contract
 from multiversx_sdk_cli.cosign_transaction import cosign_transaction
 from multiversx_sdk_cli.dependency_checker import check_if_rust_is_installed
 from multiversx_sdk_cli.docker import is_docker_installed, run_docker
-from multiversx_sdk_cli.errors import DockerMissingError, NoWalletProvided
+from multiversx_sdk_cli.errors import (BadUsage, DockerMissingError,
+                                       NoWalletProvided)
 from multiversx_sdk_cli.interfaces import IAddress
+from multiversx_sdk_cli.multisig import (
+    prepare_transaction_for_contract_call,
+    prepare_transaction_for_deploying_contract,
+    prepare_transaction_upgrading_contract)
 from multiversx_sdk_cli.projects.core import get_project_paths_recursively
 from multiversx_sdk_cli.projects.templates import Contract
 from multiversx_sdk_cli.ux import show_message
@@ -85,6 +90,8 @@ def setup_parser(args: List[str], subparsers: Any) -> Any:
                                                     " - only valid if --wait-result is set")
     cli_shared.add_broadcast_args(sub)
     cli_shared.add_guardian_wallet_args(args, sub)
+    cli_shared.add_multisig_address_arg(sub)
+    add_contract_address_for_multisig_deploy(sub)
 
     sub.set_defaults(func=deploy)
 
@@ -97,13 +104,14 @@ def setup_parser(args: List[str], subparsers: Any) -> Any:
     cli_shared.add_tx_args(args, sub, with_receiver=False, with_data=False, with_guardian=True)
     _add_function_arg(sub)
     _add_arguments_arg(sub)
-    _add_token_transfers_args(sub)
+    cli_shared.add_token_transfers_arg(sub)
     sub.add_argument("--wait-result", action="store_true", default=False,
                      help="signal to wait for the transaction result - only valid if --send is set")
     sub.add_argument("--timeout", default=100, help="max num of seconds to wait for result"
                                                     " - only valid if --wait-result is set")
     cli_shared.add_broadcast_args(sub, relay=True)
     cli_shared.add_guardian_wallet_args(args, sub)
+    cli_shared.add_multisig_address_arg(sub)
 
     sub.set_defaults(func=call)
 
@@ -123,6 +131,8 @@ def setup_parser(args: List[str], subparsers: Any) -> Any:
                                                     " - only valid if --wait-result is set")
     cli_shared.add_broadcast_args(sub)
     cli_shared.add_guardian_wallet_args(args, sub)
+    cli_shared.add_multisig_address_arg(sub)
+    add_contract_address_for_multisig_upgrade(sub)
 
     sub.set_defaults(func=upgrade)
 
@@ -218,8 +228,8 @@ def _add_recursive_arg(sub: Any):
 
 
 def _add_bytecode_arg(sub: Any):
-    sub.add_argument("--bytecode", type=str, required=True,
-                     help="the file containing the WASM bytecode")
+    sub.add_argument("--bytecode", type=str,
+                     help="the file containing the WASM bytecode; not needed when deploying using a multisig contract")
 
 
 def _add_contract_arg(sub: Any):
@@ -236,12 +246,6 @@ def _add_arguments_arg(sub: Any):
                      "boolean] or hex-encoded. E.g. --arguments 42 0x64 1000 0xabba str:TOK-a1c2ef true erd1[..]")
 
 
-def _add_token_transfers_args(sub: Any):
-    sub.add_argument("--token-transfers", nargs='+',
-                     help="token transfers for transfer & execute, as [token, amount] "
-                     "E.g. --token-transfers NFT-123456-0a 1 ESDT-987654 100000000")
-
-
 def _add_metadata_arg(sub: Any):
     sub.add_argument("--metadata-not-upgradeable", dest="metadata_upgradeable", action="store_false",
                      help="‼ mark the contract as NOT upgradeable (default: upgradeable)")
@@ -252,6 +256,14 @@ def _add_metadata_arg(sub: Any):
     sub.add_argument("--metadata-payable-by-sc", dest="metadata_payable_by_sc", action="store_true",
                      help="‼ mark the contract as payable by SC (default: not payable by SC)")
     sub.set_defaults(metadata_upgradeable=True, metadata_payable=False)
+
+
+def add_contract_address_for_multisig_deploy(sub: Any):
+    sub.add_argument("--deployed-contract", help="the address of the already deployed contract to be re-deployed by the multisig")
+
+
+def add_contract_address_for_multisig_upgrade(sub: Any):
+    sub.add_argument("--upgraded-contract", help="the address of the already upgraded contract, that will be used to upgrade the contract owned by the multisig")
 
 
 def list_templates(args: Any):
@@ -315,26 +327,60 @@ def deploy(args: Any):
     cli_shared.prepare_nonce_in_args(args)
 
     sender = cli_shared.prepare_account(args)
-    config = TransactionsFactoryConfig(args.chain)
-    contract = SmartContract(config)
-
     address_computer = AddressComputer(NUMBER_OF_SHARDS)
-    contract_address = address_computer.compute_contract_address(deployer=sender.address, deployment_nonce=args.nonce)
 
-    tx = contract.prepare_deploy_transaction(
-        owner=sender,
-        bytecode=Path(args.bytecode),
-        arguments=args.arguments,
-        upgradeable=args.metadata_upgradeable,
-        readable=args.metadata_readable,
-        payable=args.metadata_payable,
-        payable_by_sc=args.metadata_payable_by_sc,
-        gas_limit=int(args.gas_limit),
-        value=int(args.value),
-        nonce=int(args.nonce),
-        version=int(args.version),
-        options=int(args.options),
-        guardian=args.guardian)
+    if args.multisig:
+        if not args.deployed_contract:
+            raise BadUsage("`--deployed-contract` needs to be provided when proposing a deploy action for the multisig contract")
+
+        multisig_address = Address.new_from_bech32(args.multisig)
+
+        if not args.proxy:
+            raise BadUsage("`--proxy` is required in order to compute the contract address")
+
+        proxy = ProxyNetworkProvider(args.proxy)
+        multisig_nonce = proxy.get_account(multisig_address).nonce
+        contract_address = address_computer.compute_contract_address(deployer=multisig_address, deployment_nonce=multisig_nonce)
+
+        tx = prepare_transaction_for_deploying_contract(
+            sender=sender,
+            multisig=Address.new_from_bech32(args.multisig),
+            deployed_contract=Address.new_from_bech32(args.deployed_contract),
+            arguments=args.arguments,
+            upgradeable=args.metadata_upgradeable,
+            readable=args.metadata_readable,
+            payable=args.metadata_payable,
+            payable_by_sc=args.metadata_payable_by_sc,
+            chain_id=args.chain,
+            value=int(args.value),
+            gas_limit=int(args.gas_limit),
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+    else:
+        if not args.bytecode:
+            raise BadUsage("`--bytecode` is required when deploying a contract")
+
+        contract_address = address_computer.compute_contract_address(deployer=sender.address, deployment_nonce=args.nonce)
+        config = TransactionsFactoryConfig(args.chain)
+        contract = SmartContract(config)
+
+        tx = contract.prepare_deploy_transaction(
+            owner=sender,
+            bytecode=Path(args.bytecode),
+            arguments=args.arguments,
+            upgradeable=args.metadata_upgradeable,
+            readable=args.metadata_readable,
+            payable=args.metadata_payable,
+            payable_by_sc=args.metadata_payable_by_sc,
+            gas_limit=int(args.gas_limit),
+            value=int(args.value),
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+
     tx = _sign_guarded_tx(args, tx)
 
     logger.info("Contract address: %s", contract_address.to_bech32())
@@ -365,24 +411,41 @@ def call(args: Any):
     cli_shared.prepare_nonce_in_args(args)
 
     sender = cli_shared.prepare_account(args)
-    config = TransactionsFactoryConfig(args.chain)
-    contract = SmartContract(config)
     contract_address = Address.new_from_bech32(args.contract)
 
-    tx = contract.prepare_execute_transaction(
-        caller=sender,
-        contract=contract_address,
-        function=args.function,
-        arguments=args.arguments,
-        gas_limit=int(args.gas_limit),
-        value=int(args.value),
-        transfers=args.token_transfers,
-        nonce=int(args.nonce),
-        version=int(args.version),
-        options=int(args.options),
-        guardian=args.guardian)
-    tx = _sign_guarded_tx(args, tx)
+    if args.multisig:
+        tx = prepare_transaction_for_contract_call(
+            sender=sender,
+            contract_address=contract_address,
+            function=args.function,
+            arguments=args.arguments,
+            multisig=Address.new_from_bech32(args.multisig),
+            value=int(args.value),
+            transfers=args.token_transfers,
+            gas_limit=int(args.gas_limit),
+            chain_id=args.chain,
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+    else:
+        config = TransactionsFactoryConfig(args.chain)
+        contract = SmartContract(config)
 
+        tx = contract.prepare_execute_transaction(
+            caller=sender,
+            contract=contract_address,
+            function=args.function,
+            arguments=args.arguments,
+            gas_limit=int(args.gas_limit),
+            value=int(args.value),
+            transfers=args.token_transfers,
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+
+    tx = _sign_guarded_tx(args, tx)
     _send_or_simulate(tx, contract_address, args)
 
 
@@ -394,27 +457,53 @@ def upgrade(args: Any):
     cli_shared.prepare_nonce_in_args(args)
 
     sender = cli_shared.prepare_account(args)
-    config = TransactionsFactoryConfig(args.chain)
-    contract = SmartContract(config)
     contract_address = Address.new_from_bech32(args.contract)
 
-    tx = contract.prepare_upgrade_transaction(
-        owner=sender,
-        contract=contract_address,
-        bytecode=Path(args.bytecode),
-        arguments=args.arguments,
-        upgradeable=args.metadata_upgradeable,
-        readable=args.metadata_readable,
-        payable=args.metadata_payable,
-        payable_by_sc=args.metadata_payable_by_sc,
-        gas_limit=int(args.gas_limit),
-        value=int(args.value),
-        nonce=int(args.nonce),
-        version=int(args.version),
-        options=int(args.options),
-        guardian=args.guardian)
-    tx = _sign_guarded_tx(args, tx)
+    if args.multisig:
+        if not args.upgraded_contract:
+            raise BadUsage("`--upgraded-contract` needs to be provided when proposing an upgrade action for a contract owned by a multisig contract")
 
+        tx = prepare_transaction_upgrading_contract(
+            sender=sender,
+            contract_address=Address.new_from_bech32(args.contract),
+            multisig=Address.new_from_bech32(args.multisig),
+            upgraded_contract=Address.new_from_bech32(args.upgraded_contract),
+            arguments=args.arguments,
+            upgradeable=args.metadata_upgradeable,
+            readable=args.metadata_readable,
+            payable=args.metadata_payable,
+            payable_by_sc=args.metadata_payable_by_sc,
+            chain_id=args.chain,
+            value=int(args.value),
+            gas_limit=int(args.gas_limit),
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+    else:
+        if not args.bytecode:
+            raise BadUsage("`--bytecode` is required when upgrading a contract")
+
+        config = TransactionsFactoryConfig(args.chain)
+        contract = SmartContract(config)
+
+        tx = contract.prepare_upgrade_transaction(
+            owner=sender,
+            contract=contract_address,
+            bytecode=Path(args.bytecode),
+            arguments=args.arguments,
+            upgradeable=args.metadata_upgradeable,
+            readable=args.metadata_readable,
+            payable=args.metadata_payable,
+            payable_by_sc=args.metadata_payable_by_sc,
+            gas_limit=int(args.gas_limit),
+            value=int(args.value),
+            nonce=int(args.nonce),
+            version=int(args.version),
+            options=int(args.options),
+            guardian=args.guardian)
+
+    tx = _sign_guarded_tx(args, tx)
     _send_or_simulate(tx, contract_address, args)
 
 
@@ -442,7 +531,7 @@ def _send_or_simulate(tx: Transaction, contract_address: IAddress, args: Any):
 
 
 def verify(args: Any) -> None:
-    contract = Address.from_bech32(args.contract)
+    contract = Address.new_from_bech32(args.contract)
     verifier_url = args.verifier_url
 
     packaged_src = Path(args.packaged_src).expanduser().resolve()

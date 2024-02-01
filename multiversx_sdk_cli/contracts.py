@@ -113,7 +113,7 @@ class SmartContract:
 
     def prepare_execute_transaction(self,
                                     caller: Account,
-                                    contract: Address,
+                                    contract: IAddress,
                                     function: str,
                                     arguments: Union[List[str], None],
                                     gas_limit: int,
@@ -123,7 +123,10 @@ class SmartContract:
                                     version: int,
                                     options: int,
                                     guardian: str) -> Transaction:
-        token_transfers = self._prepare_token_transfers(transfers) if transfers else []
+        if value and transfers:
+            raise errors.BadUsage("Can't send both native and custom tokens")
+
+        token_transfers = self.prepare_token_transfers(transfers) if transfers else []
         args = prepare_args_for_factory(arguments) if arguments else []
 
         tx = self._factory.create_transaction_for_execute(
@@ -180,7 +183,7 @@ class SmartContract:
 
         return tx
 
-    def _prepare_token_transfers(self, transfers: List[str]) -> List[TokenTransfer]:
+    def prepare_token_transfers(self, transfers: List[str]) -> List[TokenTransfer]:
         token_computer = TokenComputer()
         token_transfers: List[TokenTransfer] = []
 
@@ -305,7 +308,7 @@ def _to_hex(arg: str):
     if arg.isnumeric():
         return _prepare_decimal(arg)
     elif arg.startswith(DEFAULT_HRP):
-        addr = Address.from_bech32(arg)
+        addr = Address.new_from_bech32(arg)
         return _prepare_hexadecimal(f"{HEX_PREFIX}{addr.hex()}")
     elif arg.lower() == FALSE_STR_LOWER or arg.lower() == TRUE_STR_LOWER:
         as_str = f"{HEX_PREFIX}01" if arg.lower() == TRUE_STR_LOWER else f"{HEX_PREFIX}00"
