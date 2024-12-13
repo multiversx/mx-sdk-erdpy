@@ -46,7 +46,7 @@ jobs:
           
           python3 -m multiversx_sdk_cli.cli localnet clean --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_remote.toml
           python3 -m multiversx_sdk_cli.cli localnet config --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_remote.toml
-          python3 -m multiversx_sdk_cli.cli localnet start --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_remote.toml --stop-after-seconds=120
+          python3 -m multiversx_sdk_cli.cli localnet start --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_remote.toml --stop-after-seconds=90
 
           if grep -r --include=\*.log "started committing block" ./localnet; then
             echo "The localnet processed blocks successfully."
@@ -71,7 +71,7 @@ jobs:
           
           python3 -m multiversx_sdk_cli.cli localnet clean --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_local.toml
           python3 -m multiversx_sdk_cli.cli localnet config --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_local.toml
-          python3 -m multiversx_sdk_cli.cli localnet start --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_local.toml --stop-after-seconds=120
+          python3 -m multiversx_sdk_cli.cli localnet start --configfile=./multiversx_sdk_cli/tests/testdata/localnet_with_resolution_local.toml --stop-after-seconds=90
 
           if grep -r --include=\*.log "started committing block" ./localnet; then
             echo "The localnet processed blocks successfully."

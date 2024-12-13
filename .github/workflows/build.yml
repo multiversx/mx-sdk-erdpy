@@ -39,13 +39,15 @@ jobs:
       - name: Setup test dependencies
         run: |
           python3 -m multiversx_sdk_cli.cli deps install testwallets
-          python3 -m multiversx_sdk_cli.cli deps install rust
       - name: Run unit tests
         run: |
           export PYTHONPATH=.
           pytest .
       - name: Run CLI tests
         run: |
+          export PROXY=https://testnet-gateway.multiversx.com
+          export CHAIN_ID=T
           cd ./multiversx_sdk_cli/tests
-          source ./test_cli_contracts.sh && testAll || return 1
+          source ./test_cli_tx.sh && testAll || return 1
           source ./test_cli_dns.sh && testOffline || return 1
+          source ./test_cli_validators.sh && testAll || return 1

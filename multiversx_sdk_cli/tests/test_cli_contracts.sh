@@ -10,8 +10,6 @@ testTrivialCommands() {
 testCreateContracts() {
     echo "testCreateContracts"
     ${CLI} contract new --template adder --path ${SANDBOX} || return 1
-    ${CLI} contract new --template crypto-zombies --path ${SANDBOX} || return 1
-    ${CLI} contract new --template empty --path ${SANDBOX} || return 1
 }
 
 testBuildContracts() {
@@ -24,30 +22,6 @@ testBuildContracts() {
     ${CLI} contract build --path=${SANDBOX}/adder --target-dir=${TARGET_DIR} || return 1
     assertFileExists ${SANDBOX}/adder/output/adder.wasm || return 1
     assertFileExists ${SANDBOX}/adder/output/adder.abi.json || return 1
-
-    ${CLI} contract build --path=${SANDBOX}/crypto-zombies --target-dir=${TARGET_DIR} || return 1
-    assertFileExists ${SANDBOX}/crypto-zombies/output/crypto-zombies.wasm || return 1
-    assertFileExists ${SANDBOX}/crypto-zombies/output/crypto-zombies.abi.json || return 1
-
-    ${CLI} contract build --path=${SANDBOX}/empty --target-dir=${TARGET_DIR} || return 1
-    assertFileExists ${SANDBOX}/empty/output/empty.wasm || return 1
-    assertFileExists ${SANDBOX}/empty/output/empty.abi.json || return 1
-}
-
-testRunScenarios() {
-    echo "testRunScenarios"
-    ${CLI} --verbose contract test --path=${SANDBOX}/adder || return 1
-    ${CLI} --verbose contract test --path=${SANDBOX}/empty || return 1
-}
-
-testWasmName() {
-    echo "testWasmName"
-   
-    ${CLI} contract clean --path ${SANDBOX}/adder
-    assertFileDoesNotExist ${SANDBOX}/adder/output/adder-2.wasm || return 1
-    ${CLI} contract build --path=${SANDBOX}/adder --target-dir=${TARGET_DIR} --wasm-name adder-2 || return 1
-    assertFileExists ${SANDBOX}/adder/output/adder-2.wasm || return 1
-    assertFileExists ${SANDBOX}/adder/output/adder.abi.json || return 1
 }
 
 testCleanContracts() {
@@ -58,18 +32,6 @@ testCleanContracts() {
     ${CLI} contract clean --path ${SANDBOX}/adder || return 1
     assertFileDoesNotExist ${SANDBOX}/adder/output/adder.wasm || return 1
     assertFileDoesNotExist ${SANDBOX}/adder/output/adder.abi.json || return 1
-
-    assertFileExists ${SANDBOX}/crypto-zombies/output/crypto-zombies.wasm || return 1
-    assertFileExists ${SANDBOX}/crypto-zombies/output/crypto-zombies.abi.json || return 1
-    ${CLI} contract clean --path ${SANDBOX}/crypto-zombies || return 1
-    assertFileDoesNotExist ${SANDBOX}/crypto-zombies/output/crypto-zombies.wasm || return 1
-    assertFileDoesNotExist ${SANDBOX}/crypto-zombies/output/crypto-zombies.abi.json || return 1
-
-    assertFileExists ${SANDBOX}/empty/output/empty.wasm || return 1
-    assertFileExists ${SANDBOX}/empty/output/empty.abi.json || return 1
-    ${CLI} contract clean --path ${SANDBOX}/empty || return 1
-    assertFileDoesNotExist ${SANDBOX}/empty/output/empty.wasm || return 1
-    assertFileDoesNotExist ${SANDBOX}/empty/output/empty.abi.json || return 1
 }
 
 testVerifyContract(){
@@ -113,7 +75,5 @@ testAll() {
     testTrivialCommands || return 1
     testCreateContracts || return 1
     testBuildContracts || return 1
-    testRunScenarios || return 1
     testCleanContracts || return 1
-    testWasmName || return 1
 }

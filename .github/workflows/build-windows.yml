@@ -42,7 +42,6 @@ jobs:
         shell: bash
         run: |
           python3 -m multiversx_sdk_cli.cli deps install testwallets
-          python3 -m multiversx_sdk_cli.cli deps install rust
       - name: Run unit tests
         shell: bash
         run: |
