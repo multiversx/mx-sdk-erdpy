@@ -177,11 +177,6 @@ class QueryContractError(KnownError):
         super().__init__(message, str(inner))
 
 
-class NativeAuthClientError(KnownError):
-    def __init__(self, message: str):
-        super().__init__(message)
-
-
 class IncorrectWalletError(KnownError):
     def __init__(self, message: str):
         super().__init__(message)
