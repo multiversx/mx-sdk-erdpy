@@ -137,7 +137,7 @@ def setup_parser(args: list[str], subparsers: Any) -> Any:
 
     sub = cli_shared.add_command_subparser(subparsers, "wallet", "sign-message", "Sign a message")
     sub.add_argument("--message", required=True, help="the message you want to sign")
-    cli_shared.add_wallet_args(args=args, sub=sub, skip_required_check=True)
+    cli_shared.add_wallet_args(args=args, sub=sub)
     sub.set_defaults(func=sign_user_message)
 
     sub = cli_shared.add_command_subparser(subparsers, "wallet", "verify-message", "Verify a previously signed message")

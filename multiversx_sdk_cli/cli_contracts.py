@@ -14,6 +14,13 @@ from multiversx_sdk import (
 from multiversx_sdk.abi import Abi
 
 from multiversx_sdk_cli import cli_shared, utils
+from multiversx_sdk_cli.args_validation import (
+    ensure_broadcast_args,
+    ensure_chain_id_args,
+    ensure_proxy_argument,
+    ensure_required_transaction_args_are_provided,
+    ensure_wallet_args_are_provided,
+)
 from multiversx_sdk_cli.cli_output import CLIOutputBuilder
 from multiversx_sdk_cli.config import get_config_for_network_providers
 from multiversx_sdk_cli.constants import NUMBER_OF_SHARDS
@@ -271,7 +278,7 @@ def _add_bytecode_arg(sub: Any):
 
 
 def _add_contract_arg(sub: Any):
-    sub.add_argument("contract", help="🖄 the address of the Smart Contract")
+    sub.add_argument("contract", type=str, help="🖄 the bech32 address of the Smart Contract")
 
 
 def _add_contract_abi_arg(sub: Any):
@@ -336,9 +343,11 @@ After installing, use the `sc-meta all build` command. To lear more about `sc-me
 
 def deploy(args: Any):
     logger.debug("deploy")
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
     sender = cli_shared.prepare_account(args)
 
@@ -353,7 +362,9 @@ def deploy(args: Any):
     relayer = cli_shared.load_relayer_account(args)
     relayer_address = cli_shared.get_relayer_address(relayer, args)
 
-    config = TransactionsFactoryConfig(args.chain)
+    chain_id = cli_shared.get_chain_id(args.chain, args.proxy)
+    config = TransactionsFactoryConfig(chain_id)
+
     abi = Abi.load(Path(args.abi)) if args.abi else None
     contract = SmartContract(config, abi)
 
@@ -392,9 +403,11 @@ def deploy(args: Any):
 
 def call(args: Any):
     logger.debug("call")
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
     sender = cli_shared.prepare_account(args)
 
@@ -409,7 +422,9 @@ def call(args: Any):
     relayer = cli_shared.load_relayer_account(args)
     relayer_address = cli_shared.get_relayer_address(relayer, args)
 
-    config = TransactionsFactoryConfig(args.chain)
+    chain_id = cli_shared.get_chain_id(args.chain, args.proxy)
+    config = TransactionsFactoryConfig(chain_id)
+
     abi = Abi.load(Path(args.abi)) if args.abi else None
     contract = SmartContract(config, abi)
 
@@ -441,9 +456,11 @@ def call(args: Any):
 
 def upgrade(args: Any):
     logger.debug("upgrade")
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
     sender = cli_shared.prepare_account(args)
 
@@ -458,7 +475,9 @@ def upgrade(args: Any):
     relayer = cli_shared.load_relayer_account(args)
     relayer_address = cli_shared.get_relayer_address(relayer, args)
 
-    config = TransactionsFactoryConfig(args.chain)
+    chain_id = cli_shared.get_chain_id(args.chain, args.proxy)
+    config = TransactionsFactoryConfig(chain_id)
+
     abi = Abi.load(Path(args.abi)) if args.abi else None
     contract = SmartContract(config, abi)
 
@@ -493,6 +512,8 @@ def upgrade(args: Any):
 
 def query(args: Any):
     logger.debug("query")
+
+    ensure_proxy_argument(args)
 
     # we don't need chainID to query a contract; we use the provided proxy
     factory_config = TransactionsFactoryConfig("")

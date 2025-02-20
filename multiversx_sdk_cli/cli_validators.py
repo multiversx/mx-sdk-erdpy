@@ -4,6 +4,12 @@ from typing import Any
 from multiversx_sdk import Address
 
 from multiversx_sdk_cli import cli_shared, utils
+from multiversx_sdk_cli.args_validation import (
+    ensure_broadcast_args,
+    ensure_chain_id_args,
+    ensure_required_transaction_args_are_provided,
+    ensure_wallet_args_are_provided,
+)
 from multiversx_sdk_cli.validators.core import ValidatorsController
 
 
@@ -192,9 +198,10 @@ def do_stake(args: Any):
 
 
 def validate_args(args: Any) -> None:
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
 
 def prepare_sender(args: Any):

@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any
 
 from multiversx_sdk import ProxyNetworkProvider, TransactionsFactoryConfig
 
@@ -7,7 +7,7 @@ from multiversx_sdk_cli.config import get_config_for_network_providers
 from multiversx_sdk_cli.delegation import DelegationOperations
 
 
-def setup_parser(args: List[str], subparsers: Any) -> Any:
+def setup_parser(args: list[str], subparsers: Any) -> Any:
     parser = cli_shared.add_group_subparser(subparsers, "staking-provider", "Staking provider omnitool")
     subparsers = parser.add_subparsers()
 
@@ -352,7 +352,7 @@ def setup_parser(args: List[str], subparsers: Any) -> Any:
     return subparsers
 
 
-def _add_common_arguments(args: List[str], sub: Any):
+def _add_common_arguments(args: list[str], sub: Any):
     cli_shared.add_proxy_arg(sub)
     cli_shared.add_wallet_args(args, sub)
     cli_shared.add_tx_args(args, sub, with_receiver=False, with_data=False, with_estimate_gas=True)

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any
 
 from multiversx_sdk import (
     Address,
@@ -414,7 +414,7 @@ class DelegationOperations:
 
         return tx
 
-    def _load_validators_public_keys(self, args: Any) -> List[ValidatorPublicKey]:
+    def _load_validators_public_keys(self, args: Any) -> list[ValidatorPublicKey]:
         if args.bls_keys:
             return self._parse_public_bls_keys(args.bls_keys)
 
@@ -422,24 +422,24 @@ class DelegationOperations:
         validators_file = ValidatorsFile(validators_file_path)
         return validators_file.load_public_keys()
 
-    def _parse_public_bls_keys(self, public_bls_keys: str) -> List[ValidatorPublicKey]:
+    def _parse_public_bls_keys(self, public_bls_keys: str) -> list[ValidatorPublicKey]:
         keys = public_bls_keys.split(",")
-        validator_public_keys: List[ValidatorPublicKey] = []
+        validator_public_keys: list[ValidatorPublicKey] = []
 
         for key in keys:
             validator_public_keys.append(ValidatorPublicKey(bytes.fromhex(key)))
 
         return validator_public_keys
 
-    def _get_public_keys_and_signed_messages(self, args: Any) -> Tuple[List[ValidatorPublicKey], List[bytes]]:
+    def _get_public_keys_and_signed_messages(self, args: Any) -> tuple[list[ValidatorPublicKey], list[bytes]]:
         validators_file_path = Path(args.validators_file).expanduser()
         validators_file = ValidatorsFile(validators_file_path)
         signers = validators_file.load_signers()
 
         pubkey = Address.new_from_bech32(args.delegation_contract).get_public_key()
 
-        public_keys: List[ValidatorPublicKey] = []
-        signed_messages: List[bytes] = []
+        public_keys: list[ValidatorPublicKey] = []
+        signed_messages: list[bytes] = []
         for signer in signers:
             signed_message = signer.sign(pubkey)
 

@@ -12,10 +12,18 @@ from multiversx_sdk import (
 )
 
 from multiversx_sdk_cli import cli_shared, utils
+from multiversx_sdk_cli.args_validation import (
+    ensure_broadcast_args,
+    ensure_chain_id_args,
+    ensure_proxy_argument,
+    ensure_relayer_wallet_args_are_provided,
+    ensure_required_transaction_args_are_provided,
+    ensure_wallet_args_are_provided,
+)
 from multiversx_sdk_cli.base_transactions_controller import BaseTransactionsController
 from multiversx_sdk_cli.cli_output import CLIOutputBuilder
 from multiversx_sdk_cli.config import get_config_for_network_providers
-from multiversx_sdk_cli.errors import BadUsage, IncorrectWalletError, NoWalletProvided
+from multiversx_sdk_cli.errors import BadUsage, IncorrectWalletError
 from multiversx_sdk_cli.transactions import (
     TransactionsController,
     load_transaction_from_file,
@@ -72,8 +80,7 @@ def setup_parser(args: list[str], subparsers: Any) -> Any:
         "sign",
         f"Sign a previously saved transaction.{CLIOutputBuilder.describe()}",
     )
-    # we add the wallet args, but don't make the args mandatory
-    cli_shared.add_wallet_args(args=args, sub=sub, skip_required_check=True)
+    cli_shared.add_wallet_args(args=args, sub=sub)
     cli_shared.add_infile_arg(sub, what="a previously saved transaction")
     cli_shared.add_outfile_arg(sub, what="the signed transaction")
     cli_shared.add_broadcast_args(sub)
@@ -107,9 +114,10 @@ def _add_common_arguments(args: list[str], sub: Any):
 
 
 def create_transaction(args: Any):
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
     sender = cli_shared.prepare_account(args)
 
@@ -131,7 +139,9 @@ def create_transaction(args: Any):
     transfers = getattr(args, "token_transfers", None)
     transfers = prepare_token_transfers(transfers) if transfers else None
 
-    tx_controller = TransactionsController(args.chain)
+    chain_id = cli_shared.get_chain_id(args.chain, args.proxy)
+    tx_controller = TransactionsController(chain_id)
+
     tx = tx_controller.create_transaction(
         sender=sender,
         receiver=Address.new_from_bech32(args.receiver),
@@ -171,6 +181,8 @@ def prepare_token_transfers(transfers: list[Any]) -> list[TokenTransfer]:
 
 
 def send_transaction(args: Any):
+    ensure_proxy_argument(args)
+
     tx = load_transaction_from_file(args.infile)
     output = CLIOutputBuilder()
 
@@ -186,7 +198,7 @@ def send_transaction(args: Any):
 
 
 def sign_transaction(args: Any):
-    cli_shared.check_broadcast_args(args)
+    ensure_broadcast_args(args)
 
     tx = load_transaction_from_file(args.infile)
 
@@ -221,10 +233,8 @@ def sign_transaction(args: Any):
 
 
 def relay_transaction(args: Any):
-    if not _is_relayer_wallet_provided(args):
-        raise NoWalletProvided()
-
-    cli_shared.check_broadcast_args(args)
+    ensure_relayer_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
 
     tx = load_transaction_from_file(args.infile)
     relayer = cli_shared.prepare_relayer_account(args)
@@ -235,7 +245,3 @@ def relay_transaction(args: Any):
     tx.relayer_signature = relayer.sign_transaction(tx)
 
     cli_shared.send_or_simulate(tx, args)
-
-
-def _is_relayer_wallet_provided(args: Any):
-    return any([args.relayer_pem, args.relayer_keyfile, args.relayer_ledger])

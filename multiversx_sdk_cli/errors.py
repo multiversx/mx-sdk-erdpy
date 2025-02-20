@@ -180,3 +180,8 @@ class QueryContractError(KnownError):
 class IncorrectWalletError(KnownError):
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class InvalidArgumentsError(KnownError):
+    def __init__(self, message: str):
+        super().__init__(message)

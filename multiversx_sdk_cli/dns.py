@@ -9,6 +9,12 @@ from multiversx_sdk import (
 )
 
 from multiversx_sdk_cli import cli_shared
+from multiversx_sdk_cli.args_validation import (
+    ensure_broadcast_args,
+    ensure_chain_id_args,
+    ensure_required_transaction_args_are_provided,
+    ensure_wallet_args_are_provided,
+)
 from multiversx_sdk_cli.config import get_address_hrp
 from multiversx_sdk_cli.constants import ADDRESS_ZERO_HEX
 from multiversx_sdk_cli.transactions import TransactionsController
@@ -55,9 +61,10 @@ def validate_name(name: str, shard_id: int, proxy: INetworkProvider):
 
 
 def register(args: Any):
-    cli_shared.check_guardian_args(args)
-    cli_shared.check_broadcast_args(args)
-    cli_shared.prepare_chain_id_in_args(args)
+    ensure_required_transaction_args_are_provided(args)
+    ensure_wallet_args_are_provided(args)
+    ensure_broadcast_args(args)
+    ensure_chain_id_args(args)
 
     sender = cli_shared.prepare_account(args)
 
@@ -77,7 +84,8 @@ def register(args: Any):
     receiver = dns_address_for_name(args.name)
     data = dns_register_data(args.name)
 
-    controller = TransactionsController(args.chain)
+    chain_id = cli_shared.get_chain_id(args.chain, args.proxy)
+    controller = TransactionsController(chain_id)
 
     tx = controller.create_transaction(
         sender=sender,

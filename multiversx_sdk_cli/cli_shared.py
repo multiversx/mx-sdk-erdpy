@@ -1,10 +1,9 @@
 import argparse
 import ast
-import copy
 import sys
 from argparse import FileType
 from pathlib import Path
-from typing import Any, Dict, List, Text, Union, cast
+from typing import Any, Text, Union, cast
 
 from multiversx_sdk import (
     Account,
@@ -70,7 +69,7 @@ def add_command_subparser(subparsers: Any, group: str, command: str, description
 
 
 def add_tx_args(
-    args: List[str],
+    args: list[str],
     sub: Any,
     with_nonce: bool = True,
     with_receiver: bool = True,
@@ -81,7 +80,7 @@ def add_tx_args(
         sub.add_argument(
             "--nonce",
             type=int,
-            required=not ("--recall-nonce" in args),
+            required=False,
             default=None,
             help="# the nonce for the transaction",
         )
@@ -93,7 +92,7 @@ def add_tx_args(
         )
 
     if with_receiver:
-        sub.add_argument("--receiver", required=True, help="🖄 the address of the receiver")
+        sub.add_argument("--receiver", required=False, help="🖄 the address of the receiver")
         sub.add_argument("--receiver-username", required=False, help="🖄 the username of the receiver")
 
     sub.add_argument(
@@ -102,7 +101,7 @@ def add_tx_args(
         type=int,
         help="⛽ the gas price (default: %(default)d)",
     )
-    sub.add_argument("--gas-limit", required=not ("--estimate-gas" in args), type=int, help="⛽ the gas limit")
+    sub.add_argument("--gas-limit", required=False, type=int, help="⛽ the gas limit")
 
     if with_estimate_gas:
         sub.add_argument(
@@ -121,7 +120,7 @@ def add_tx_args(
             help="the payload, or 'memo' of the transaction (default: %(default)s)",
         )
 
-    sub.add_argument("--chain", help="the chain identifier")
+    sub.add_argument("--chain", type=str, help="the chain identifier")
     sub.add_argument(
         "--version",
         type=int,
@@ -152,10 +151,10 @@ def add_guardian_args(sub: Any):
     )
 
 
-def add_wallet_args(args: List[str], sub: Any, skip_required_check: bool = False):
+def add_wallet_args(args: list[str], sub: Any):
     sub.add_argument(
         "--pem",
-        required=check_if_sign_method_required(args, "--pem", skip_required_check),
+        required=False,
         help="🔑 the PEM file, if keyfile not provided",
     )
     sub.add_argument(
@@ -166,7 +165,7 @@ def add_wallet_args(args: List[str], sub: Any, skip_required_check: bool = False
     )
     sub.add_argument(
         "--keyfile",
-        required=check_if_sign_method_required(args, "--keyfile", skip_required_check),
+        required=False,
         help="🔑 a JSON keyfile, if PEM not provided",
     )
     sub.add_argument(
@@ -182,7 +181,7 @@ def add_wallet_args(args: List[str], sub: Any, skip_required_check: bool = False
     sub.add_argument(
         "--ledger",
         action="store_true",
-        required=check_if_sign_method_required(args, "--ledger", skip_required_check),
+        required=False,
         default=False,
         help="🔐 bool flag for signing transaction using ledger",
     )
@@ -195,7 +194,7 @@ def add_wallet_args(args: List[str], sub: Any, skip_required_check: bool = False
     sub.add_argument("--sender-username", required=False, help="🖄 the username of the sender")
 
 
-def add_guardian_wallet_args(args: List[str], sub: Any):
+def add_guardian_wallet_args(args: list[str], sub: Any):
     sub.add_argument(
         "--guardian-pem",
         help="🔑 the PEM file, if keyfile not provided",
@@ -234,7 +233,7 @@ def add_guardian_wallet_args(args: List[str], sub: Any):
     )
 
 
-def add_relayed_v3_wallet_args(args: List[str], sub: Any):
+def add_relayed_v3_wallet_args(args: list[str], sub: Any):
     sub.add_argument("--relayer-pem", help="🔑 the PEM file, if keyfile not provided")
     sub.add_argument(
         "--relayer-pem-index",
@@ -268,7 +267,7 @@ def add_relayed_v3_wallet_args(args: List[str], sub: Any):
 
 
 def add_proxy_arg(sub: Any):
-    sub.add_argument("--proxy", help="🔗 the URL of the proxy")
+    sub.add_argument("--proxy", type=str, help="🔗 the URL of the proxy")
 
 
 def add_outfile_arg(sub: Any, what: str = ""):
@@ -305,10 +304,10 @@ def add_token_transfers_args(sub: Any):
     )
 
 
-def parse_omit_fields_arg(args: Any) -> List[str]:
+def parse_omit_fields_arg(args: Any) -> list[str]:
     literal = args.omit_fields
     parsed = ast.literal_eval(literal)
-    return cast(List[str], parsed)
+    return cast(list[str], parsed)
 
 
 def prepare_account(args: Any):
@@ -497,6 +496,26 @@ def prepare_chain_id_in_args(args: Any):
         args.chain = proxy.get_network_config().chain_id
 
 
+def get_chain_id(chain_id: str, proxy_url: str) -> str:
+    if chain_id and proxy_url:
+        network_provider_config = config.get_config_for_network_providers()
+        proxy = ProxyNetworkProvider(url=proxy_url, config=network_provider_config)
+        fetched_chain_id = proxy.get_network_config().chain_id
+
+        if chain_id != fetched_chain_id:
+            show_warning(
+                f"The chain ID you have provided does not match the chain ID you got from the proxy. Will use the proxy's value: '{fetched_chain_id}'"
+            )
+        return fetched_chain_id
+
+    if chain_id:
+        return chain_id
+    else:
+        network_provider_config = config.get_config_for_network_providers()
+        proxy = ProxyNetworkProvider(url=proxy_url, config=network_provider_config)
+        return proxy.get_network_config().chain_id
+
+
 def add_broadcast_args(sub: Any, simulate: bool = True):
     sub.add_argument(
         "--send",
@@ -572,41 +591,3 @@ def send_or_simulate(tx: Transaction, args: Any, dump_output: bool = True) -> CL
             )
 
     return output_builder
-
-
-def check_if_sign_method_required(args: List[str], checked_method: str, skip_required_check: bool = False) -> bool:
-    if skip_required_check:
-        return False
-
-    methods = ["--pem", "--keyfile", "--ledger"]
-    rest_of_methods: List[str] = []
-    for method in methods:
-        if method != checked_method:
-            rest_of_methods.append(method)
-
-    for method in rest_of_methods:
-        if utils.is_arg_present(args, method):
-            return False
-
-    return True
-
-
-def convert_args_object_to_args_list(args: Any) -> List[str]:
-    arguments = copy.deepcopy(args)
-    args_dict: Dict[str, Any] = arguments.__dict__
-
-    # delete the function key because we don't need to pass it along
-    args_dict.pop("func", None)
-
-    args_list: List[str] = []
-    for key, val in args_dict.items():
-        modified_key = "--" + key.replace("_", "-")
-
-        if isinstance(val, bool) and val:
-            args_list.extend([modified_key])
-            continue
-
-        if val:
-            args_list.extend([modified_key, val])
-
-    return args_list
