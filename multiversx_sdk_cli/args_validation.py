@@ -58,6 +58,9 @@ def ensure_broadcast_args(args: Any):
     if args.send and args.simulate:
         raise InvalidArgumentsError("Cannot both 'simulate' and 'send' a transaction")
 
+    if args.send or args.simulate:
+        ensure_proxy_argument(args)
+
 
 def ensure_chain_id_args(args: Any):
     if not args.chain and not args.proxy:
